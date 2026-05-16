@@ -35,7 +35,8 @@ if ($result->num_rows === 0) {
 
 $admin = $result->fetch_assoc();
 
-if (!password_verify($adminPassword, $admin['password'])) {
+// Compare plain text password
+if ($adminPassword !== $admin['password']) {
     header('Location: ../admin_login.php?message=' . urlencode('Invalid admin credentials.'));
     exit;
 }
@@ -43,6 +44,6 @@ if (!password_verify($adminPassword, $admin['password'])) {
 $_SESSION['admin_id'] = (int)$admin['id'];
 $_SESSION['admin_username'] = $admin['username'];
 
-header('Location: ../admin_dashboard.php');
+header('Location: ../admin_manage.php');
 exit;
 ?>

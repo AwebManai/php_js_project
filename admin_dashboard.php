@@ -28,12 +28,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $name = trim($_POST['name'] ?? '');
         $price = (float)($_POST['price'] ?? 0);
         $stock = (int)($_POST['stock'] ?? 0);
-        $image = trim($_POST['image'] ?? '');
+        $imageUrl = trim($_POST['image_url'] ?? '');
         $description = trim($_POST['description'] ?? '');
         $category = trim($_POST['category'] ?? '');
+        $image = '';
+
+        // Handle image upload or URL
+        if (!empty($_FILES['image_upload']['name'])) {
+            // File upload
+            $uploadDir = __DIR__ . '/uploads/';
+            $fileName = basename($_FILES['image_upload']['name']);
+            $fileExt = pathinfo($fileName, PATHINFO_EXTENSION);
+            $allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+            
+            if (in_array(strtolower($fileExt), $allowedExts) && $_FILES['image_upload']['size'] <= 5242880) { // 5MB max
+                $uniqueName = uniqid() . '.' . $fileExt;
+                $uploadPath = $uploadDir . $uniqueName;
+                
+                if (move_uploaded_file($_FILES['image_upload']['tmp_name'], $uploadPath)) {
+                    $image = 'uploads/' . $uniqueName;
+                } else {
+                    $statusMessage = 'Failed to upload image file.';
+                    $image = '';
+                }
+            } else {
+                $statusMessage = 'Invalid image file. Only JPG, PNG, GIF, WebP allowed (max 5MB).';
+                $image = '';
+            }
+        } elseif (!empty($imageUrl)) {
+            // URL provided
+            $image = $imageUrl;
+        }
 
         if ($name === '' || $price <= 0) {
             $statusMessage = 'Product name and a valid price are required.';
+        } elseif (empty($image)) {
+            $statusMessage = 'Please provide either an image file or image URL.';
         } else {
             $stmt = $conn->prepare('INSERT INTO product (name, price, image, description, category, stock) VALUES (?, ?, ?, ?, ?, ?)');
             $stmt->bind_param('sdsssi', $name, $price, $image, $description, $category, $stock);
@@ -265,7 +295,7 @@ $conn->close();
         <div class="grid">
             <section class="card">
                 <h2>Add Product</h2>
-                <form method="POST">
+                <form method="POST" enctype="multipart/form-data">
                     <input type="hidden" name="action" value="add_product" />
                     <div class="row">
                         <input type="text" name="name" placeholder="Product name" required />
@@ -276,7 +306,10 @@ $conn->close();
                         <input type="text" name="category" placeholder="Category" />
                     </div>
                     <div class="row">
-                        <input type="text" name="image" placeholder="Image URL" />
+                        <input type="file" name="image_upload" accept="image/*" />
+                        <input type="text" name="image_url" placeholder="Or enter image URL" />
+                    </div>
+                    <div class="row">
                         <input type="text" name="description" placeholder="Short description" />
                     </div>
                     <button type="submit">Add Product</button>
