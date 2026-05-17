@@ -40,7 +40,10 @@ try {
     $userId = (int)$_SESSION['user_id'];
     $totalAmount = 0.00;
 
-    $checkStmt = $conn->prepare('SELECT id, name, stock, price FROM product WHERE id = ? FOR UPDATE');
+    $checkStmt = $conn->prepare('SELECT p.id, p.name, p.stock, p.price, COALESCE(s.discount_percentage, 0) as discount_percentage 
+                                  FROM product p 
+                                  LEFT JOIN sales s ON p.id = s.product_id 
+                                  WHERE p.id = ? FOR UPDATE');
     $updateStmt = $conn->prepare('UPDATE product SET stock = stock - ? WHERE id = ?');
     $insertOrderStmt = $conn->prepare('INSERT INTO purchase_order (user_id, total_amount) VALUES (?, ?)');
 
@@ -78,7 +81,9 @@ try {
 
         $product = $result->fetch_assoc();
         $currentStock = (int)$product['stock'];
-        $unitPrice = (float)$product['price'];
+        $basePrice = (float)$product['price'];
+        $discountPercent = (float)$product['discount_percentage'];
+        $unitPrice = $basePrice * (1 - $discountPercent / 100);
         $lineTotal = $unitPrice * $quantity;
 
         if ($currentStock < $quantity) {

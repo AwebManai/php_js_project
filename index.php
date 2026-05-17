@@ -240,6 +240,38 @@ session_start();
             cursor: not-allowed;
         }
 
+        .sale-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: #fbbf24;
+            color: #92400e;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 700;
+            z-index: 10;
+        }
+
+        .sale-price-section {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .original-price {
+            font-size: 14px;
+            color: #9ca3af;
+            text-decoration: line-through;
+        }
+
+        .sale-discount {
+            color: #dc2626;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
         @media (max-width: 768px) {
             .filter-container {
                 flex-direction: column;
@@ -602,6 +634,145 @@ session_start();
                 margin-top: 8px;
             }
         }
+
+        /* Product Details Modal Styles */
+        .product-details-modal {
+            width: 90%;
+            max-width: 700px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .product-details-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .product-image-section {
+            width: 100%;
+            max-height: 300px;
+            overflow: hidden;
+            border-radius: 8px;
+        }
+
+        .product-image-section img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .product-info-section {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .product-details-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        .product-details-category {
+            display: inline-block;
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 600;
+            width: fit-content;
+        }
+
+        .product-details-price-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .product-details-price {
+            font-size: 28px;
+            font-weight: 700;
+            color: #22c55e;
+        }
+
+        .product-details-original-price {
+            font-size: 20px;
+            color: #9ca3af;
+            text-decoration: line-through;
+        }
+
+        .product-details-discount {
+            background: #fbbf24;
+            color: #92400e;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .product-details-description {
+            font-size: 15px;
+            color: #374151;
+            line-height: 1.6;
+            border: 1px solid #e5e7eb;
+            padding: 16px;
+            border-radius: 6px;
+            background: #f9fafb;
+        }
+
+        .product-details-stock {
+            font-size: 14px;
+            font-weight: 600;
+            padding: 12px;
+            border-radius: 6px;
+            background: #f0fdf4;
+            color: #166534;
+            border: 1px solid #22c55e;
+        }
+
+        .product-details-stock.out-of-stock {
+            background: #fef2f2;
+            color: #991b1b;
+            border-color: #dc2626;
+        }
+
+        .product-details-footer {
+            display: flex;
+            gap: 12px;
+            padding: 16px 24px;
+            border-top: 1px solid #e5e7eb;
+            background: #f9fafb;
+            justify-content: flex-end;
+        }
+
+        .btn-add-to-cart {
+            background: #22c55e;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+            transition: background 0.2s;
+            flex: 1;
+        }
+
+        .btn-add-to-cart:hover:not(:disabled) {
+            background: #16a34a;
+        }
+
+        .btn-add-to-cart:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -657,6 +828,40 @@ session_start();
         <div id="status" class="status">Loading products...</div>
         <section id="productGrid" class="grid"></section>
     </main>
+
+    <!-- Product Details Modal -->
+    <div id="productDetailsModal" class="modal" style="display: none;">
+        <div class="modal-content product-details-modal">
+            <div class="modal-header">
+                <h2>Product Details</h2>
+                <button class="modal-close" id="detailsModalClose">&times;</button>
+            </div>
+            <div class="modal-body product-details-body">
+                <div class="product-image-section">
+                    <img id="detailsProductImage" src="" alt="Product">
+                </div>
+                <div class="product-info-section">
+                    <div class="product-details-category" id="detailsProductCategory"></div>
+                    <h3 class="product-details-title" id="detailsProductTitle"></h3>
+                    <div class="product-details-price-section" id="detailsPriceSection"></div>
+                    <div class="product-details-description" id="detailsProductDescription"></div>
+                    <div class="product-details-stock" id="detailsProductStock"></div>
+                    <div class="quantity-controls">
+                        <label for="detailsQuantityInput">Quantity to Buy:</label>
+                        <div class="quantity-selector">
+                            <button id="detailsDecreaseBtn" class="qty-btn">−</button>
+                            <input type="number" id="detailsQuantityInput" min="1" max="100" value="1" />
+                            <button id="detailsIncreaseBtn" class="qty-btn">+</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="product-details-footer">
+                <button id="detailsModalCancel" class="btn-cancel">Close</button>
+                <button id="detailsAddToCartBtn" class="btn-add-to-cart" type="button">Add to Cart</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Quantity Picker Modal -->
     <div id="quantityModal" class="modal" style="display: none;">
@@ -736,12 +941,15 @@ session_start();
         }
 
         function getProductPrice(productId) {
-            const product = allProducts.find(p => p.id === productId);
-            return product ? parseFloat(product.price) : 0;
+            const product = allProducts.find(p => String(p.id) === String(productId));
+            if (!product) return 0;
+            const basePrice = parseFloat(product.price) || 0;
+            const discount = Number(product.discount_percentage) || 0;
+            return basePrice * (1 - discount / 100);
         }
 
         function getProductName(productId) {
-            const product = allProducts.find(p => p.id === productId);
+            const product = allProducts.find(p => String(p.id) === String(productId));
             return product ? product.name : 'Unknown Product';
         }
 
@@ -768,8 +976,11 @@ session_start();
             let subtotal = 0;
 
             Object.entries(cart).forEach(([productId, quantity]) => {
-                const productName = getProductName(parseInt(productId));
-                const unitPrice = getProductPrice(parseInt(productId));
+                const product = allProducts.find(p => String(p.id) === String(productId));
+                const productName = getProductName(productId);
+                const basePrice = product ? parseFloat(product.price) || 0 : 0;
+                const discountPercent = product ? (Number(product.discount_percentage) || 0) : 0;
+                const unitPrice = basePrice * (1 - discountPercent / 100);
                 const lineTotal = unitPrice * quantity;
                 subtotal += lineTotal;
 
@@ -778,7 +989,14 @@ session_start();
                 itemEl.innerHTML = `
                     <div class="cart-item-info">
                         <div class="cart-item-name">${productName}</div>
-                        <div class="cart-item-details">Price: $${unitPrice.toFixed(2)}</div>
+                        <div class="cart-item-details">
+                            ${discountPercent > 0 ? 
+                                `<span style="text-decoration: line-through; color: #9ca3af;">$${basePrice.toFixed(2)}</span> 
+                                 <span style="color: #dc2626; font-weight: 600;">$${unitPrice.toFixed(2)}</span> 
+                                 <span style="color: #22c55e; font-weight: 600;">-${discountPercent.toFixed(1)}%</span>` :
+                                `Price: $${unitPrice.toFixed(2)}`
+                            }
+                        </div>
                     </div>
                     <div class="cart-item-qty-control">
                         <button data-product="${productId}" class="qty-decrease">−</button>
@@ -810,7 +1028,7 @@ session_start();
         }
 
         function adjustQuantity(productId, change) {
-            const product = allProducts.find(p => p.id === parseInt(productId));
+            const product = allProducts.find(p => String(p.id) === String(productId));
             if (!product) return;
 
             const currentQty = cart[productId] || 0;
@@ -847,9 +1065,24 @@ session_start();
             const modalProductName = document.getElementById("modalProductName");
             const availableStock = document.getElementById("availableStock");
 
+            const basePrice = parseFloat(product.price);
+            const discountPercent = Number(product.discount_percentage) || 0;
+            const salePrice = basePrice * (1 - discountPercent / 100);
+            const hasSale = discountPercent > 0;
+
             quantityInput.value = 1;
             quantityInput.max = product.stock;
-            modalProductName.textContent = `Product: ${product.name}`;
+            
+            let priceHTML = `Product: ${product.name} - `;
+            if (hasSale) {
+                priceHTML += `<span style="text-decoration: line-through; color: #9ca3af;">$${basePrice.toFixed(2)}</span> `;
+                priceHTML += `<span style="color: #dc2626; font-weight: 600;">$${salePrice.toFixed(2)}</span> `;
+                priceHTML += `<span style="color: #22c55e; font-weight: 600;">-${discountPercent.toFixed(1)}%</span>`;
+            } else {
+                priceHTML += `$${basePrice.toFixed(2)}`;
+            }
+            
+            modalProductName.innerHTML = priceHTML;
             availableStock.textContent = `Available stock: ${product.stock}`;
             modal.style.display = "flex";
         }
@@ -891,6 +1124,73 @@ session_start();
             openQuantityModal(product);
         }
 
+        function viewProductDetails(product) {
+            if (!isLoggedIn) {
+                alert("Please log in first to view details.");
+                return;
+            }
+
+            selectedProduct = product;
+            const modal = document.getElementById("productDetailsModal");
+            const stock = Number(product.stock) || 0;
+            const outOfStock = stock <= 0;
+            const basePrice = parseFloat(product.price);
+            const discountPercent = Number(product.discount_percentage) || 0;
+            const salePrice = basePrice * (1 - discountPercent / 100);
+            const hasSale = discountPercent > 0;
+
+            // Set product image
+            document.getElementById("detailsProductImage").src = product.image;
+            document.getElementById("detailsProductImage").alt = product.name;
+
+            // Set product category
+            document.getElementById("detailsProductCategory").textContent = product.category || 'Uncategorized';
+
+            // Set product title
+            document.getElementById("detailsProductTitle").textContent = product.name;
+
+            // Set product price
+            const priceSection = document.getElementById("detailsPriceSection");
+            if (hasSale) {
+                priceSection.innerHTML = `
+                    <span class="product-details-original-price">$${basePrice.toFixed(2)}</span>
+                    <span class="product-details-price">$${salePrice.toFixed(2)}</span>
+                    <span class="product-details-discount">-${discountPercent.toFixed(1)}%</span>
+                `;
+            } else {
+                priceSection.innerHTML = `<span class="product-details-price">$${basePrice.toFixed(2)}</span>`;
+            }
+
+            // Set product description
+            document.getElementById("detailsProductDescription").textContent = product.description || 'No description available';
+
+            // Set stock info
+            const stockElement = document.getElementById("detailsProductStock");
+            if (outOfStock) {
+                stockElement.className = "product-details-stock out-of-stock";
+                stockElement.textContent = "Out of Stock";
+            } else {
+                stockElement.className = "product-details-stock";
+                stockElement.textContent = `In stock: ${stock} item(s) available`;
+            }
+
+            // Set quantity input max value
+            const quantityInput = document.getElementById("detailsQuantityInput");
+            quantityInput.max = stock;
+            quantityInput.value = 1;
+
+            // Enable/disable add to cart button
+            const addToCartBtn = document.getElementById("detailsAddToCartBtn");
+            addToCartBtn.disabled = outOfStock;
+
+            modal.style.display = "flex";
+        }
+
+        function closeProductDetailsModal() {
+            document.getElementById("productDetailsModal").style.display = "none";
+            selectedProduct = null;
+        }
+
         function createProductCard(product) {
             const card = document.createElement("article");
             card.className = "product";
@@ -899,23 +1199,35 @@ session_start();
             const outOfStock = stock <= 0;
             const description = product.description || 'No description available';
             const category = product.category || 'Uncategorized';
+            const hasSale = product.discount_percentage > 0;
+            const discountPercent = Number(product.discount_percentage) || 0;
+            const originalPrice = Number(product.price) || 0;
+            const salePrice = originalPrice * (1 - discountPercent / 100);
 
             card.innerHTML = `
                 <img src="${product.image}" alt="${product.name}">
+                ${hasSale ? `<div class="sale-badge">-${discountPercent.toFixed(1)}%</div>` : ''}
                 <div class="content">
                     <span class="category-badge">${category}</span>
                     <div class="name">${product.name}</div>
                     <div class="description">${description}</div>
-                    <div class="price">$${Number(product.price).toFixed(2)}</div>
-                    <div class="stock ${outOfStock ? "out" : ""}">
-                        ${outOfStock ? "Out of stock" : `In stock: ${stock}`}
+                    ${hasSale ? `
+                        <div class="sale-price-section">
+                            <span class="original-price">$${originalPrice.toFixed(2)}</span>
+                            <span class="sale-discount">$${salePrice.toFixed(2)}</span>
+                        </div>
+                    ` : `
+                        <div class="price">$${originalPrice.toFixed(2)}</div>
+                    `}
+                    <div class="stock ${outOfStock ? 'out' : ''}">
+                        ${outOfStock ? 'Out of Stock' : `In stock: ${stock}`}
                     </div>
-                    <button type="button" ${outOfStock ? "disabled" : ""}>Add to Cart</button>
+                    <button type="button" ${outOfStock ? 'disabled' : ''}>View Details</button>
                 </div>
             `;
 
             const button = card.querySelector("button");
-            button.addEventListener("click", () => addToCart(product));
+            button.addEventListener("click", () => viewProductDetails(product));
 
             return card;
         }
@@ -1096,6 +1408,52 @@ session_start();
         });
 
         document.getElementById("buyNowBtn").addEventListener("click", checkout);
+        
+        // Product Details Modal Event Listeners
+        document.getElementById("detailsModalClose").addEventListener("click", closeProductDetailsModal);
+        document.getElementById("detailsModalCancel").addEventListener("click", closeProductDetailsModal);
+        
+        // Quantity controls for details modal
+        document.getElementById("detailsDecreaseBtn").addEventListener("click", () => {
+            const input = document.getElementById("detailsQuantityInput");
+            const val = Math.max(1, parseInt(input.value) - 1);
+            input.value = val;
+        });
+
+        document.getElementById("detailsIncreaseBtn").addEventListener("click", () => {
+            const input = document.getElementById("detailsQuantityInput");
+            const max = parseInt(input.max);
+            const val = Math.min(max, parseInt(input.value) + 1);
+            input.value = val;
+        });
+
+        // Add to cart from details modal
+        document.getElementById("detailsAddToCartBtn").addEventListener("click", () => {
+            if (!selectedProduct) return;
+
+            const quantity = parseInt(document.getElementById("detailsQuantityInput").value) || 1;
+            const stock = Number(selectedProduct.stock) || 0;
+            const inCart = cart[selectedProduct.id] || 0;
+            const maxAllowed = stock - inCart;
+
+            if (quantity > maxAllowed) {
+                alert(`Only ${maxAllowed} item(s) available.`);
+                return;
+            }
+
+            cart[selectedProduct.id] = (cart[selectedProduct.id] || 0) + quantity;
+            cartCount += quantity;
+            updateCartUi();
+            closeProductDetailsModal();
+        });
+
+        // Close details modal when clicking outside
+        document.getElementById("productDetailsModal").addEventListener("click", (e) => {
+            if (e.target.id === "productDetailsModal") {
+                closeProductDetailsModal();
+            }
+        });
+
         updateCartUi();
         loadProducts();
     </script>

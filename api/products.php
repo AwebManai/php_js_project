@@ -31,7 +31,11 @@ if ($categoryResult && $categoryResult->num_rows > 0) {
 }
 
 // Build products query with filters
-$query = "SELECT id, name, price, image, description, category, stock FROM product WHERE 1=1";
+$query = "SELECT p.id, p.name, p.price, p.image, p.description, p.category, p.stock,
+                 COALESCE(s.discount_percentage, 0) as discount_percentage
+          FROM product p
+          LEFT JOIN sales s ON p.id = s.product_id
+          WHERE 1=1";
 
 if (!empty($category)) {
     $category = $conn->real_escape_string($category);

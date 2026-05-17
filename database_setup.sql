@@ -65,3 +65,13 @@ CREATE TABLE purchase_item (
     FOREIGN KEY (order_id) REFERENCES purchase_order(id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES product(id) ON DELETE CASCADE
 );
+
+--  sales table
+CREATE TABLE sales (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    product_id INT NOT NULL,
+    discount_percentage DECIMAL(5, 2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_product_sale (product_id),
+    FOREIGN KEY (product_id) REFERENCES product(id) ON DELETE CASCADE
+);

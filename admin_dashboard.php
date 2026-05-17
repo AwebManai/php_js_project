@@ -121,10 +121,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->close();
         }
     }
+
+    if ($action === 'add_sale') {
+        $productId = (int)($_POST['product_id'] ?? 0);
+        $discountPercentage = (float)($_POST['discount_percentage'] ?? 0);
+
+        if ($productId <= 0 || $discountPercentage <= 0 || $discountPercentage > 100) {
+            $statusMessage = 'Invalid product or discount percentage (1-100).';
+        } else {
+            $stmt = $conn->prepare('INSERT INTO sales (product_id, discount_percentage) VALUES (?, ?) ON DUPLICATE KEY UPDATE discount_percentage = ?');
+            $stmt->bind_param('idd', $productId, $discountPercentage, $discountPercentage);
+            if ($stmt->execute()) {
+                $statusMessage = 'Sale created successfully.';
+            } else {
+                $statusMessage = 'Failed to create sale.';
+            }
+            $stmt->close();
+        }
+    }
+
+    if ($action === 'cancel_sale') {
+        $saleId = (int)($_POST['sale_id'] ?? 0);
+        if ($saleId > 0) {
+            $stmt = $conn->prepare('DELETE FROM sales WHERE id = ?');
+            $stmt->bind_param('i', $saleId);
+            if ($stmt->execute()) {
+                $statusMessage = 'Sale canceled.';
+            } else {
+                $statusMessage = 'Failed to cancel sale.';
+            }
+            $stmt->close();
+        }
+    }
 }
 
 $users = [];
 $products = [];
+$sales = [];
 
 $userResult = $conn->query('SELECT id, firstname, lastname, email, created_at FROM users ORDER BY id DESC');
 if ($userResult) {
@@ -137,6 +170,13 @@ $productResult = $conn->query('SELECT id, name, price, stock, category FROM prod
 if ($productResult) {
     while ($row = $productResult->fetch_assoc()) {
         $products[] = $row;
+    }
+}
+
+$salesResult = $conn->query('SELECT s.id, s.product_id, s.discount_percentage, p.name, p.price FROM sales s JOIN product p ON s.product_id = p.id ORDER BY s.id DESC');
+if ($salesResult) {
+    while ($row = $salesResult->fetch_assoc()) {
+        $sales[] = $row;
     }
 }
 
@@ -268,6 +308,16 @@ $conn->close();
             width: 90px;
         }
 
+        .sale-badge {
+            background: #fef08a;
+            color: #854d0e;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
         @media (max-width: 900px) {
             .grid {
                 grid-template-columns: 1fr;
@@ -283,6 +333,7 @@ $conn->close();
         </div>
         <div class="inline">
             <a href="index.php">Back to Shop</a>
+            <a href="admin_manage.php">Manage Products</a>
             <a href="api/admin_logout.php">Sign Out</a>
         </div>
     </div>
@@ -317,6 +368,25 @@ $conn->close();
             </section>
 
             <section class="card">
+                <h2>Create Sale</h2>
+                <form method="POST">
+                    <input type="hidden" name="action" value="add_sale" />
+                    <div class="row">
+                        <select name="product_id" required>
+                            <option value="">Select Product</option>
+                            <?php foreach ($products as $product): ?>
+                                <option value="<?php echo (int)$product['id']; ?>">
+                                    <?php echo htmlspecialchars($product['name']); ?> ($<?php echo number_format((float)$product['price'], 2); ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <input type="number" name="discount_percentage" step="0.01" min="1" max="100" placeholder="Discount %" required />
+                    </div>
+                    <button type="submit">Create Sale</button>
+                </form>
+            </section>
+
+            <section class="card">
                 <h2>Users</h2>
                 <table>
                     <thead>
@@ -338,6 +408,46 @@ $conn->close();
                                         <input type="hidden" name="action" value="delete_user" />
                                         <input type="hidden" name="user_id" value="<?php echo (int)$user['id']; ?>" />
                                         <button type="submit" class="danger">Delete</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </section>
+
+            <section class="card">
+                <h2>Active Sales</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Price</th>
+                            <th>Discount</th>
+                            <th>Sale Price</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (count($sales) === 0): ?>
+                            <tr>
+                                <td colspan="5" style="text-align: center; color: #9ca3af;">No active sales</td>
+                            </tr>
+                        <?php endif; ?>
+                        <?php foreach ($sales as $sale): ?>
+                            <tr>
+                                <td><?php echo htmlspecialchars($sale['name']); ?></td>
+                                <td>$<?php echo number_format((float)$sale['price'], 2); ?></td>
+                                <td><span class="sale-badge"><?php echo number_format((float)$sale['discount_percentage'], 2); ?>%</span></td>
+                                <td>$<?php 
+                                    $salePrice = (float)$sale['price'] * (1 - (float)$sale['discount_percentage'] / 100);
+                                    echo number_format($salePrice, 2); 
+                                ?></td>
+                                <td>
+                                    <form method="POST" onsubmit="return confirm('Cancel this sale?');">
+                                        <input type="hidden" name="action" value="cancel_sale" />
+                                        <input type="hidden" name="sale_id" value="<?php echo (int)$sale['id']; ?>" />
+                                        <button type="submit" class="danger">Cancel</button>
                                     </form>
                                 </td>
                             </tr>
