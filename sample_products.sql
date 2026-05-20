@@ -10,3 +10,14 @@ INSERT INTO product (name, price, image, description, category, stock) VALUES
 ('White Sneakers', 79.99, 'sneakers1.jpg', 'Clean white sneakers that go with any outfit', 'Footwear', 55),
 ('Floral Print Blouse', 39.99, 'blouse1.jpg', 'Beautiful floral print blouse for spring and summer', 'Tops', 28),
 ('Athletic Shorts', 29.99, 'shorts1.jpg', 'Breathable athletic shorts for gym and outdoor activities', 'Bottoms', 50);
+
+
+
+INSERT INTO admins (id, username, password, email, created_at)
+VALUES (
+    1,
+    'admin',
+    'admin123',
+    'admin@example.com',
+    NOW()
+);
