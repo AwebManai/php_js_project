@@ -12,6 +12,7 @@ if (!isset($_SESSION['user_id'])) {
 $raw = file_get_contents('php://input');
 $data = json_decode($raw, true);
 $items = $data['items'] ?? [];
+$couponId = isset($data['coupon_id']) ? (int)$data['coupon_id'] : null;
 
 if (!is_array($items) || count($items) === 0) {
     http_response_code(400);
@@ -39,19 +40,61 @@ try {
 
     $userId = (int)$_SESSION['user_id'];
     $totalAmount = 0.00;
+    $couponDiscount = 0.00;
+    $validatedCouponId = null;
+
+    // Validate coupon if provided
+    if ($couponId !== null && $couponId > 0) {
+        $couponStmt = $conn->prepare('SELECT id, discount_type, discount_value, max_uses, times_used, expiration_date, active FROM coupon WHERE id = ?');
+        $couponStmt->bind_param('i', $couponId);
+        $couponStmt->execute();
+        $couponResult = $couponStmt->get_result();
+        
+        if ($couponResult->num_rows === 0) {
+            throw new Exception('Coupon not found.');
+        }
+        
+        $coupon = $couponResult->fetch_assoc();
+        $couponStmt->close();
+        
+        // Validate coupon status
+        if (!$coupon['active']) {
+            throw new Exception('This coupon is no longer active.');
+        }
+        
+        if (!empty($coupon['expiration_date']) && strtotime($coupon['expiration_date']) < time()) {
+            throw new Exception('This coupon has expired.');
+        }
+        
+        if ($coupon['times_used'] >= $coupon['max_uses']) {
+            throw new Exception('This coupon has reached its usage limit.');
+        }
+        
+        // Check if user already used this coupon
+        $usageCheckStmt = $conn->prepare('SELECT id FROM coupon_uses WHERE coupon_id = ? AND user_id = ?');
+        $usageCheckStmt->bind_param('ii', $couponId, $userId);
+        $usageCheckStmt->execute();
+        
+        if ($usageCheckStmt->get_result()->num_rows > 0) {
+            throw new Exception('You have already used this coupon.');
+        }
+        $usageCheckStmt->close();
+        
+        $validatedCouponId = $couponId;
+    }
 
     $checkStmt = $conn->prepare('SELECT p.id, p.name, p.stock, p.price, COALESCE(s.discount_percentage, 0) as discount_percentage 
                                   FROM product p 
                                   LEFT JOIN sales s ON p.id = s.product_id 
                                   WHERE p.id = ? FOR UPDATE');
     $updateStmt = $conn->prepare('UPDATE product SET stock = stock - ? WHERE id = ?');
-    $insertOrderStmt = $conn->prepare('INSERT INTO purchase_order (user_id, total_amount) VALUES (?, ?)');
+    $insertOrderStmt = $conn->prepare('INSERT INTO purchase_order (user_id, total_amount, coupon_id, coupon_discount) VALUES (?, ?, ?, ?)');
 
     if (!$insertOrderStmt) {
         throw new Exception('Failed to create purchase order.');
     }
 
-    $insertOrderStmt->bind_param('id', $userId, $totalAmount);
+    $insertOrderStmt->bind_param('iddi', $userId, $totalAmount, $validatedCouponId, $couponDiscount);
     if (!$insertOrderStmt->execute()) {
         throw new Exception('Failed to create purchase order.');
     }
@@ -103,14 +146,51 @@ try {
         $totalAmount += $lineTotal;
     }
 
-    $updateOrderStmt = $conn->prepare('UPDATE purchase_order SET total_amount = ? WHERE id = ?');
+    // Calculate coupon discount if coupon was provided
+    if ($validatedCouponId !== null && $validatedCouponId > 0) {
+        $discountStmt = $conn->prepare('SELECT discount_type, discount_value FROM coupon WHERE id = ?');
+        $discountStmt->bind_param('i', $validatedCouponId);
+        $discountStmt->execute();
+        $discountRow = $discountStmt->get_result()->fetch_assoc();
+        $discountStmt->close();
+        
+        if ($discountRow) {
+            if ($discountRow['discount_type'] === 'fixed') {
+                $couponDiscount = min($discountRow['discount_value'], $totalAmount);
+            } else { // percent
+                $couponDiscount = ($totalAmount * $discountRow['discount_value']) / 100;
+            }
+        }
+    }
+
+    // Calculate final total
+    $finalTotal = max(0, $totalAmount - $couponDiscount);
+
+    $updateOrderStmt = $conn->prepare('UPDATE purchase_order SET total_amount = ?, coupon_discount = ? WHERE id = ?');
     if (!$updateOrderStmt) {
         throw new Exception('Failed to finalize order.');
     }
 
-    $updateOrderStmt->bind_param('di', $totalAmount, $orderId);
+    $updateOrderStmt->bind_param('ddi', $finalTotal, $couponDiscount, $orderId);
     if (!$updateOrderStmt->execute()) {
         throw new Exception('Failed to finalize order.');
+    }
+    $updateOrderStmt->close();
+
+    // Record coupon usage
+    if ($validatedCouponId !== null && $validatedCouponId > 0) {
+        $recordUsageStmt = $conn->prepare('INSERT INTO coupon_uses (coupon_id, user_id, order_id) VALUES (?, ?, ?)');
+        $recordUsageStmt->bind_param('iii', $validatedCouponId, $userId, $orderId);
+        if (!$recordUsageStmt->execute()) {
+            throw new Exception('Failed to record coupon usage.');
+        }
+        $recordUsageStmt->close();
+        
+        // Update coupon times_used
+        $updateCouponStmt = $conn->prepare('UPDATE coupon SET times_used = times_used + 1 WHERE id = ?');
+        $updateCouponStmt->bind_param('i', $validatedCouponId);
+        $updateCouponStmt->execute();
+        $updateCouponStmt->close();
     }
 
     $conn->commit();
@@ -132,9 +212,6 @@ try {
     }
     if (isset($insertItemStmt)) {
         $insertItemStmt->close();
-    }
-    if (isset($updateOrderStmt)) {
-        $updateOrderStmt->close();
     }
     $conn->close();
 }

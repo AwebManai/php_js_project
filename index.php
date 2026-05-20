@@ -904,9 +904,22 @@ session_start();
                 </div>
             </div>
             <div id="cartSummary" class="cart-summary">
+                <div id="couponSection" style="margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #e5e7eb;">
+                    <label style="font-size: 14px; color: #374151; font-weight: 600; display: block; margin-bottom: 8px;">Apply Coupon Code (Optional)</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="couponCodeInput" placeholder="Enter coupon code" style="flex: 1; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-family: inherit;">
+                        <button id="applyCouponBtn" type="button" style="padding: 8px 16px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: background 0.2s;">Apply</button>
+                    </div>
+                    <div id="couponStatus" style="font-size: 12px; margin-top: 6px; min-height: 16px;"></div>
+                    <div id="appliedCouponInfo" style="font-size: 13px; color: #22c55e; font-weight: 600; margin-top: 6px; display: none;"></div>
+                </div>
                 <div class="summary-row">
                     <span>Subtotal:</span>
                     <span id="subtotalPrice">$0.00</span>
+                </div>
+                <div id="discountRow" class="summary-row" style="display: none; color: #dc2626;">
+                    <span>Coupon Discount:</span>
+                    <span id="discountPrice">$0.00</span>
                 </div>
                 <div class="summary-row total">
                     <span>Total:</span>
@@ -933,6 +946,7 @@ session_start();
             search: ''
         };
         let selectedProduct = null;
+        let appliedCoupon = null;
 
         function updateCartUi() {
             document.getElementById("cartCount").textContent = cartCount;
@@ -964,6 +978,8 @@ session_start();
                 emptyMessage.style.display = "block";
                 cartSummary.style.display = "none";
                 checkoutBtn.disabled = true;
+                appliedCoupon = null;
+                document.getElementById("couponCodeInput").value = '';
                 return;
             }
 
@@ -1015,7 +1031,20 @@ session_start();
             });
 
             document.getElementById("subtotalPrice").textContent = `$${subtotal.toFixed(2)}`;
-            document.getElementById("totalPrice").textContent = `$${subtotal.toFixed(2)}`;
+            
+            // Calculate final total with coupon discount
+            let finalTotal = subtotal;
+            const discountRow = document.getElementById("discountRow");
+            
+            if (appliedCoupon) {
+                discountRow.style.display = "flex";
+                document.getElementById("discountPrice").textContent = `-$${appliedCoupon.discount_amount.toFixed(2)}`;
+                finalTotal = appliedCoupon.final_total;
+            } else {
+                discountRow.style.display = "none";
+            }
+            
+            document.getElementById("totalPrice").textContent = `$${finalTotal.toFixed(2)}`;
         }
 
         function openCartModal() {
@@ -1280,6 +1309,71 @@ session_start();
             statusEl.textContent = `Showing ${products.length} product(s).`;
         }
 
+        async function applyCoupon() {
+            if (!appliedCoupon) {
+                const couponCode = document.getElementById("couponCodeInput").value.trim();
+                if (!couponCode) {
+                    showCouponStatus('Please enter a coupon code.', 'error');
+                    return;
+                }
+
+                // Calculate current cart total
+                let cartTotal = 0;
+                Object.entries(cart).forEach(([productId, quantity]) => {
+                    const product = allProducts.find(p => String(p.id) === String(productId));
+                    if (product) {
+                        const basePrice = parseFloat(product.price) || 0;
+                        const discountPercent = Number(product.discount_percentage) || 0;
+                        const unitPrice = basePrice * (1 - discountPercent / 100);
+                        cartTotal += unitPrice * quantity;
+                    }
+                });
+
+                try {
+                    const response = await fetch("api/validate_coupon.php?action=validate", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            code: couponCode,
+                            cart_total: cartTotal
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok || !result.success) {
+                        showCouponStatus(result.message || 'Coupon validation failed.', 'error');
+                        return;
+                    }
+
+                    appliedCoupon = result;
+                    document.getElementById("applyCouponBtn").textContent = "Remove Coupon";
+                    showCouponStatus(`Coupon "${couponCode}" applied successfully!`, 'success');
+                    document.getElementById("appliedCouponInfo").textContent = `Discount: -$${result.discount_amount.toFixed(2)}`;
+                    document.getElementById("appliedCouponInfo").style.display = "block";
+                    updateCartView();
+                } catch (error) {
+                    showCouponStatus('Error validating coupon.', 'error');
+                }
+            } else {
+                // Remove coupon
+                appliedCoupon = null;
+                document.getElementById("couponCodeInput").value = '';
+                document.getElementById("applyCouponBtn").textContent = "Apply";
+                document.getElementById("couponStatus").textContent = '';
+                document.getElementById("appliedCouponInfo").style.display = "none";
+                updateCartView();
+            }
+        }
+
+        function showCouponStatus(message, type) {
+            const statusEl = document.getElementById("couponStatus");
+            statusEl.textContent = message;
+            statusEl.style.color = type === 'error' ? '#dc2626' : '#22c55e';
+        }
+
         async function checkout() {
             if (!isLoggedIn) {
                 alert("Please log in first.");
@@ -1296,6 +1390,11 @@ session_start();
                 quantity: Number(quantity)
             }));
 
+            const checkoutData = { items };
+            if (appliedCoupon) {
+                checkoutData.coupon_id = appliedCoupon.coupon_id;
+            }
+
             const buyBtn = document.getElementById("buyNowBtn");
             buyBtn.disabled = true;
             buyBtn.textContent = "Buying...";
@@ -1306,7 +1405,7 @@ session_start();
                     headers: {
                         "Content-Type": "application/json"
                     },
-                    body: JSON.stringify({ items })
+                    body: JSON.stringify(checkoutData)
                 });
 
                 const result = await response.json();
@@ -1319,6 +1418,8 @@ session_start();
 
                 Object.keys(cart).forEach((key) => delete cart[key]);
                 cartCount = 0;
+                appliedCoupon = null;
+                document.getElementById("couponCodeInput").value = '';
                 updateCartUi();
                 closeCartModal();
                 loadProducts();
@@ -1398,6 +1499,7 @@ session_start();
         document.getElementById("viewCartBtn").addEventListener("click", openCartModal);
         document.getElementById("cartModalClose").addEventListener("click", closeCartModal);
         document.getElementById("cartModalClose2").addEventListener("click", closeCartModal);
+        document.getElementById("applyCouponBtn").addEventListener("click", applyCoupon);
         document.getElementById("cartCheckoutBtn").addEventListener("click", checkout);
 
         // Close cart modal when clicking outside

@@ -583,6 +583,7 @@ $conn->close();
         <div class="tabs">
             <button class="tab-btn <?php echo $currentTab === 'users' ? 'active' : ''; ?>" onclick="switchTab('users')">Manage Users</button>
             <button class="tab-btn <?php echo $currentTab === 'products' ? 'active' : ''; ?>" onclick="switchTab('products')">Manage Products</button>
+            <button class="tab-btn <?php echo $currentTab === 'coupons' ? 'active' : ''; ?>" onclick="switchTab('coupons')">Manage Coupons</button>
         </div>
 
         <!-- USERS TAB -->
@@ -825,6 +826,52 @@ $conn->close();
                 </div>
             <?php endif; ?>
         </div>
+
+        <!-- COUPONS TAB -->
+        <div id="coupons" class="tab-content <?php echo $currentTab === 'coupons' ? 'active' : ''; ?>">
+            <div class="card">
+                <h2>Create New Coupon</h2>
+                <form id="couponForm" style="display: grid; gap: 12px;">
+                    <div class="row">
+                        <div class="form-section">
+                            <label class="form-label">Coupon Code</label>
+                            <input type="text" id="couponCode" placeholder="e.g., SUMMER20" required style="padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;" />
+                        </div>
+                        <div class="form-section">
+                            <label class="form-label">Discount Type</label>
+                            <select id="discountType" required style="padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                                <option value="fixed">Fixed Amount ($)</option>
+                                <option value="percent">Percentage (%)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="form-section">
+                            <label class="form-label">Discount Value</label>
+                            <input type="number" id="discountValue" placeholder="e.g., 20" step="0.01" min="0" required style="padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;" />
+                        </div>
+                        <div class="form-section">
+                            <label class="form-label">Max Uses</label>
+                            <input type="number" id="maxUses" placeholder="e.g., 5" value="5" min="1" required style="padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;" />
+                        </div>
+                    </div>
+                    <div class="form-section">
+                        <label class="form-label">Expiration Date (Optional)</label>
+                        <input type="datetime-local" id="expirationDate" style="padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;" />
+                    </div>
+                    <div class="btn-group">
+                        <button type="button" class="btn-primary" onclick="createCoupon()" style="padding: 10px 20px; background: #1d4ed8; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Create Coupon</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="card" style="margin-top: 24px;">
+                <h2>Active Coupons</h2>
+                <div id="couponsListContainer" class="table-wrapper">
+                    <p style="text-align: center; color: #6b7280; padding: 20px;">Loading coupons...</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -843,7 +890,184 @@ $conn->close();
 
             // Update URL
             window.history.pushState(null, '', 'admin_manage.php?tab=' + tabName);
+
+            // Load coupons if switching to coupons tab
+            if (tabName === 'coupons') {
+                loadCoupons();
+            }
         }
+
+        async function createCoupon() {
+            const code = document.getElementById('couponCode').value.trim();
+            const discountType = document.getElementById('discountType').value;
+            const discountValue = parseFloat(document.getElementById('discountValue').value);
+            const maxUses = parseInt(document.getElementById('maxUses').value);
+            const expirationDate = document.getElementById('expirationDate').value;
+
+            if (!code || discountValue <= 0 || maxUses <= 0) {
+                alert('Please fill in all required fields correctly.');
+                return;
+            }
+
+            try {
+                const response = await fetch('api/admin_coupons.php?action=create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        code,
+                        discount_type: discountType,
+                        discount_value: discountValue,
+                        max_uses: maxUses,
+                        expiration_date: expirationDate || null
+                    })
+                });
+
+                const result = await response.json();
+
+                if (!result.success) {
+                    alert(result.message || 'Failed to create coupon.');
+                    return;
+                }
+
+                alert('Coupon created successfully!');
+                document.getElementById('couponForm').reset();
+                loadCoupons();
+            } catch (error) {
+                alert('Error creating coupon.');
+            }
+        }
+
+        async function loadCoupons() {
+            const container = document.getElementById('couponsListContainer');
+
+            try {
+                const response = await fetch('api/admin_coupons.php?action=list');
+                const result = await response.json();
+
+                if (!result.success || !result.coupons) {
+                    container.innerHTML = '<p style="text-align: center; color: #6b7280; padding: 20px;">No coupons found.</p>';
+                    return;
+                }
+
+                if (result.coupons.length === 0) {
+                    container.innerHTML = '<p style="text-align: center; color: #6b7280; padding: 20px;">No coupons created yet.</p>';
+                    return;
+                }
+
+                let tableHTML = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Code</th>
+                                <th>Type</th>
+                                <th>Discount</th>
+                                <th>Usage</th>
+                                <th>Expires</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                result.coupons.forEach(coupon => {
+                    const expiryDate = coupon.expiration_date ? new Date(coupon.expiration_date).toLocaleDateString() : 'Never';
+                    const isExpired = coupon.expiration_date && new Date(coupon.expiration_date) < new Date();
+                    const statusClass = coupon.active && !isExpired ? 'badge-success' : 'badge-danger';
+                    const statusText = !coupon.active ? 'Inactive' : (isExpired ? 'Expired' : 'Active');
+                    const discountText = coupon.discount_type === 'fixed' ? `$${coupon.discount_value}` : `${coupon.discount_value}%`;
+                    const usagePercent = Math.round((coupon.times_used / coupon.max_uses) * 100);
+
+                    tableHTML += `
+                        <tr>
+                            <td><strong>${coupon.code}</strong></td>
+                            <td>${coupon.discount_type === 'fixed' ? 'Fixed' : 'Percent'}</td>
+                            <td>${discountText}</td>
+                            <td>${coupon.times_used}/${coupon.max_uses} <span style="font-size: 12px; color: #6b7280;">(${usagePercent}%)</span></td>
+                            <td>${expiryDate}</td>
+                            <td><span class="badge ${statusClass}">${statusText}</span></td>
+                            <td>
+                                <button onclick="editCoupon(${coupon.id})" style="padding: 6px 12px; background: #1d4ed8; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; margin-right: 4px;">Edit</button>
+                                <button onclick="deleteCoupon(${coupon.id})" style="padding: 6px 12px; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">Delete</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                tableHTML += '</tbody></table>';
+                container.innerHTML = tableHTML;
+            } catch (error) {
+                container.innerHTML = '<p style="text-align: center; color: #dc2626; padding: 20px;">Error loading coupons.</p>';
+            }
+        }
+
+        async function editCoupon(id) {
+            const newDiscount = prompt('Enter new discount value:');
+            if (newDiscount === null) return;
+
+            const newMaxUses = prompt('Enter new max uses:', '5');
+            if (newMaxUses === null) return;
+
+            const newExpiry = prompt('Enter expiration date (YYYY-MM-DD HH:MM or leave blank):', '');
+
+            try {
+                const response = await fetch('api/admin_coupons.php?action=update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id,
+                        discount_value: parseFloat(newDiscount),
+                        max_uses: parseInt(newMaxUses),
+                        expiration_date: newExpiry || null,
+                        active: 1
+                    })
+                });
+
+                const result = await response.json();
+
+                if (!result.success) {
+                    alert(result.message || 'Failed to update coupon.');
+                    return;
+                }
+
+                alert('Coupon updated successfully!');
+                loadCoupons();
+            } catch (error) {
+                alert('Error updating coupon.');
+            }
+        }
+
+        async function deleteCoupon(id) {
+            if (!confirm('Delete this coupon? This action cannot be undone.')) return;
+
+            try {
+                const response = await fetch('api/admin_coupons.php?action=delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id })
+                });
+
+                const result = await response.json();
+
+                if (!result.success) {
+                    alert(result.message || 'Failed to delete coupon.');
+                    return;
+                }
+
+                alert('Coupon deleted successfully!');
+                loadCoupons();
+            } catch (error) {
+                alert('Error deleting coupon.');
+            }
+        }
+
+        // Load coupons on page load if coupons tab is active
+        window.addEventListener('load', () => {
+            const currentTab = new URLSearchParams(window.location.search).get('tab') || 'users';
+            if (currentTab === 'coupons') {
+                loadCoupons();
+            }
+        });
     </script>
 </body>
 </html>
