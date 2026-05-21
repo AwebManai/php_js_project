@@ -1190,7 +1190,7 @@ session_start();
                 priceSection.innerHTML = `<span class="product-details-price">$${basePrice.toFixed(2)}</span>`;
             }
 
-            // Set product description
+            // Set product descriptiondddddddddd
             document.getElementById("detailsProductDescription").textContent = product.description || 'No description available';
 
             // Set stock info
